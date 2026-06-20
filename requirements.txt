@@ -1,0 +1,4 @@
+﻿paho-mqtt
+httpx
+fastmcp
+python-dotenv
