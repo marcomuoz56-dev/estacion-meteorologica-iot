@@ -1,0 +1,10 @@
+﻿#ifndef CONFIG_H
+#define CONFIG_H
+#define WIFI_SSID  "TU_SSID"
+#define WIFI_PASS  "TU_PASS"
+#define MQTT_HOST  "tu-cluster.s1.eu.hivemq.cloud"
+#define MQTT_PORT  8883
+#define MQTT_USER  "tu_usuario"
+#define MQTT_PASS  "tu_password"
+#define MQTT_TOPIC "sensor/bmp280"
+#endif

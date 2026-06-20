@@ -1,0 +1,4 @@
+﻿.env
+config.h
+node_modules/
+.firebase/
