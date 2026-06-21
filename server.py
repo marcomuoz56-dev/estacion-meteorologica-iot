@@ -241,7 +241,7 @@ def obtener_info_proyecto() -> dict:
     return {
         "nombre": "Estacion Meteorologica IoT",
         "dashboard": "https://medidor-metereologico.web.app/",
-        "mcp": "https://identical-apricot-hoverfly.fastmcp.app/mcp",
+        "mcp": "https://estacionmetereologica.fastmcp.app/mcp",
         "descripcion": "Sensor BME280 + ESP32 -> HiveMQ -> Python -> Supabase -> Dashboard"
     }
 
