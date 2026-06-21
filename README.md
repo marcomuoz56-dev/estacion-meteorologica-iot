@@ -31,7 +31,7 @@ International University, bajo la direccion del profesor Cristian Gabriel Zambra
 | Base de datos | Supabase (PostgreSQL) | Almacenar lecturas con timestamp |
 | Visualizacion | Firebase Hosting (Chart.js) | Dashboard web con graficas en tiempo real |
 | Inteligencia Artificial | FastMCP | Exponer datos del sensor a modelos de lenguaje |
-| Tunel | ngrok | Hacer accesible el servidor MCP desde internet |
+| MCP server | Horizon | Hacer accesible el servidor MCP desde internet |
 
 ---
 
