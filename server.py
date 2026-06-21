@@ -332,17 +332,17 @@ def on_message(client, userdata, msg):
         headers=HEADERS_WRITE  # Service role — autorizado a escribir
     )
     print(f"Insertado: {data} → {response.status_code}")
+def start_mqtt():
+    try:
+        mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        mqtt_client.username_pw_set(MQTT_USER, MQTT_PASS)
+        mqtt_client.tls_set()
+        mqtt_client.on_connect = on_connect
+        mqtt_client.on_message = on_message
+        mqtt_client.connect(MQTT_HOST, MQTT_PORT)
+        mqtt_client.loop_forever()
+    except Exception as e:
+        print(f"Error MQTT: {e}")
 
-# ─── Configuración del cliente MQTT ─────────────────────────────────────────
-mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)  # API v2 evita warnings
-mqtt_client.username_pw_set(MQTT_USER, MQTT_PASS)            # Autenticación HiveMQ
-mqtt_client.tls_set()                                         # Cifrado TLS puerto 8883
-mqtt_client.on_connect = on_connect
-mqtt_client.on_message = on_message
-mqtt_client.connect(MQTT_HOST, MQTT_PORT)
-
-# ─── Arranque en paralelo: MQTT en hilo, MCP en main ───────────────────────
-# El bridge MQTT corre en un hilo daemon para no bloquear el servidor MCP
-# Daemon=True hace que el hilo muera con el proceso principal
-threading.Thread(target=mqtt_client.loop_forever, daemon=True).start()
-print("MQTT bridge iniciado en hilo daemon")
+threading.Thread(target=start_mqtt, daemon=True).start()
+print("Bridge MQTT + MCP iniciados")
