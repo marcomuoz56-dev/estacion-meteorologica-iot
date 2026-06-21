@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Medidor Meteorologico</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f172a;color:#e2e8f0;padding:1rem;max-width:1400px;margin:0 auto}
+h1{font-size:1.3rem;font-weight:600;margin-bottom:.5rem;color:#cbd5e1}
+.subtitle{font-size:.8rem;color:#475569;margin-bottom:1rem}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1.5rem}
+.metric{background:#1e293b;border-radius:12px;padding:1rem;position:relative;overflow:hidden;border:1px solid #334155}
+.metric-icon{font-size:28px;margin-bottom:6px}
+.metric-label{font-size:11px;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.metric-val{font-size:26px;font-weight:600}
+.metric-unit{font-size:13px;color:#64748b;font-weight:400}
+.metric-temp .metric-val{color:#fca5a5}
+.metric-pres .metric-val{color:#93c5fd}
+.metric-alt .metric-val{color:#86efac}
+.metric-hum .metric-val{color:#c4b5fd}
+.card{background:#1e293b;border-radius:12px;padding:1rem 1.25rem;border:1px solid #334155}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
+.card-title{font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.5px}
+.chart-type-btn{background:#0f172a;border:1px solid #334155;color:#94a3b8;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;transition:all .2s}
+.chart-type-btn:hover,.chart-type-btn.active{background:#334155;color:#e2e8f0;border-color:#475569}
+.btn-group{display:flex;gap:4px}
+.status{display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b;margin-bottom:1rem}
+.dot{width:8px;height:8px;border-radius:50%;background:#4ade80;animation:pulse 2s infinite}
+.dot.offline{background:#f87171;animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.avg-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.avg-card{background:#0f172a;border-radius:8px;padding:.75rem 1rem;border:1px solid #1e293b}
+.avg-hour{font-size:11px;color:#64748b;margin-bottom:4px}
+.avg-vals{font-size:12px;color:#cbd5e1;line-height:1.8}
+.mcp-section{background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%);border-radius:12px;padding:1.5rem;margin-top:1rem;border:1px solid #334155}
+.mcp-title{font-size:14px;font-weight:600;color:#e2e8f0;margin-bottom:.75rem;display:flex;align-items:center;gap:8px}
+.mcp-badge{background:#1D9E75;color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:500}
+.mcp-url{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:.75rem 1rem;font-family:'Courier New',monospace;font-size:13px;color:#4ade80;margin:.75rem 0;word-break:break-all;display:flex;justify-content:space-between;align-items:center}
+.mcp-url a{color:#4ade80;text-decoration:none}
+.mcp-url a:hover{text-decoration:underline}
+.copy-btn{background:#334155;border:none;color:#94a3b8;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px}
+.copy-btn:hover{background:#475569;color:#e2e8f0}
+.mcp-steps{font-size:12px;color:#94a3b8;line-height:2}
+.mcp-step{display:flex;gap:10px;align-items:flex-start;margin-bottom:6px}
+.step-num{background:#334155;color:#e2e8f0;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0}
+.step-text{padding-top:2px}
+.step-code{background:#0f172a;border-radius:4px;padding:2px 6px;font-family:'Courier New',monospace;font-size:11px;color:#93c5fd}
+@media(max-width:768px){
+  .grid4{grid-template-columns:repeat(2,1fr)}
+  .avg-grid{grid-template-columns:1fr}
+  .btn-group{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<h1>&#9729; Medidor Meteorologico BME280</h1>
+<div class="subtitle">Estacion de monitoreo IoT &mdash; ESP32 + Supabase + Firebase</div>
+<div class="status"><div class="dot" id="status-dot"></div><span id="status-txt">Conectando...</span></div>
+
+<div class="grid4">
+  <div class="metric metric-temp">
+    <div class="metric-icon">&#127777;</div>
+    <div class="metric-label">Temperatura</div>
+    <div class="metric-val" id="val-temp">--<span class="metric-unit"> &deg;C</span></div>
+  </div>
+  <div class="metric metric-pres">
+    <div class="metric-icon">&#9875;</div>
+    <div class="metric-label">Presion</div>
+    <div class="metric-val" id="val-pres">--<span class="metric-unit"> hPa</span></div>
+  </div>
+  <div class="metric metric-alt">
+    <div class="metric-icon">&#9968;</div>
+    <div class="metric-label">Altitud</div>
+    <div class="metric-val" id="val-alt">--<span class="metric-unit"> m</span></div>
+  </div>
+  <div class="metric metric-hum">
+    <div class="metric-icon">&#128167;</div>
+    <div class="metric-label">Humedad</div>
+    <div class="metric-val" id="val-hum">--<span class="metric-unit"> %</span></div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1rem">
+  <div class="card-header">
+    <div class="card-title" id="chart-title">&#127777; Temperatura (&deg;C)</div>
+    <div class="btn-group">
+      <button class="chart-type-btn active" onclick="switchVar('t',this)">&#127777; Temperatura</button>
+      <button class="chart-type-btn" onclick="switchVar('p',this)">&#9875; Presion</button>
+      <button class="chart-type-btn" onclick="switchVar('a',this)">&#9968; Altitud</button>
+      <button class="chart-type-btn" onclick="switchVar('h',this)">&#128167; Humedad</button>
+    </div>
+  </div>
+  <div style="position:relative;width:100%;height:280px"><canvas id="mainChart"></canvas></div>
+</div>
+
+<div class="card" style="margin-bottom:1rem">
+  <div class="card-title" style="margin-bottom:.75rem">&#128202; Promedios por hora</div>
+  <div id="avg-container" class="avg-grid"></div>
+</div>
+
+<div class="mcp-section">
+  <div class="mcp-title">&#129302; Integracion con Inteligencia Artificial <span class="mcp-badge">MCP</span></div>
+  <p style="font-size:12px;color:#94a3b8;margin-bottom:.75rem">
+    Este sistema expone un servidor MCP (Model Context Protocol) que permite a cualquier modelo de lenguaje consultar los datos del sensor en tiempo real, calcular promedios, detectar anomalias y generar analisis contextualizados.
+  </p>
+
+  <div style="font-size:12px;color:#64748b;margin-bottom:4px">URL del servicio MCP:</div>
+  <div class="mcp-url">
+    <a href="https://linnie-noncommemoratory-overforwardly.ngrok-free.dev/sse" target="_blank">https://linnie-noncommemoratory-overforwardly.ngrok-free.dev/sse</a>
+    <button class="copy-btn" onclick="copyMCP()">Copiar</button>
+  </div>
+
+  <div style="font-size:12px;color:#cbd5e1;font-weight:600;margin:1rem 0 .5rem">Como conectar un LLM al servicio MCP:</div>
+  <div class="mcp-steps">
+    <div class="mcp-step">
+      <div class="step-num">1</div>
+      <div class="step-text">Abrir <b>Claude.ai</b> e ir a <b>Personalizar &rarr; Conectores &rarr; Agregar conector personalizado</b></div>
+    </div>
+    <div class="mcp-step">
+      <div class="step-num">2</div>
+      <div class="step-text">En <b>Nombre</b> escribir: <span class="step-code">estacion-meteorologica</span></div>
+    </div>
+    <div class="mcp-step">
+      <div class="step-num">3</div>
+      <div class="step-text">En <b>URL del servidor MCP remoto</b> pegar la URL del servicio mostrada arriba y click en <b>Agregar</b></div>
+    </div>
+    <div class="mcp-step">
+      <div class="step-num">4</div>
+      <div class="step-text">Preguntar al LLM, por ejemplo: <span class="step-code">&iquest;Cual es la temperatura actual?</span> o <span class="step-code">&iquest;Hay alguna alerta meteorologica?</span></div>
+    </div>
+  </div>
+  <div style="font-size:11px;color:#475569;margin-top:.75rem;font-style:italic">
+    Herramientas disponibles: obtener_ultima_lectura, obtener_ultimas_lecturas, obtener_datos_grafico, obtener_resumen_estacion, detectar_alertas, datos_para_dashboard
+  </div>
+</div>
+
+<script>
+const SB_URL='https://swgxlnnpidfvxilfyjsk.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3Z3hsbm5waWRmdnhpbGZ5anNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5NDAzNzIsImV4cCI6MjA5MzUxNjM3Mn0.vOQiZMdD7kGjPrjSND0IlY99MDVwY85pirWwsmNjgSA';
+const H={apikey:SB_KEY,Authorization:'Bearer '+SB_KEY};
+
+const pastel={
+  t:{border:'#fca5a5',bg:'rgba(252,165,165,0.15)',title:'&#127777; Temperatura (&deg;C)',field:'temperatura'},
+  p:{border:'#93c5fd',bg:'rgba(147,197,253,0.15)',title:'&#9875; Presion (hPa)',field:'presion'},
+  a:{border:'#86efac',bg:'rgba(134,239,172,0.15)',title:'&#9968; Altitud (m)',field:'altitud'},
+  h:{border:'#c4b5fd',bg:'rgba(196,181,253,0.15)',title:'&#128167; Humedad (%)',field:'humedad'}
+};
+
+let mainChart=null;
+let currentVar='t';
+let allData=[];
+
+function createChart(){
+  const c=pastel[currentVar];
+  const ctx=document.getElementById('mainChart').getContext('2d');
+  if(mainChart) mainChart.destroy();
+  mainChart=new Chart(ctx,{
+    type:'line',
+    data:{labels:[],datasets:[{
+      data:[],
+      borderColor:c.border,
+      backgroundColor:c.bg,
+      borderWidth:2,
+      pointRadius:2,
+      tension:0.3,
+      fill:true
+    }]},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{maxTicksLimit:8,color:'#475569',font:{size:10}},grid:{color:'#1e293b'}},
+        y:{ticks:{color:'#475569',font:{size:10}},grid:{color:'#1e293b55'}}
+      }
+    }
+  });
+}
+
+function switchVar(key,btn){
+  currentVar=key;
+  document.getElementById('chart-title').innerHTML=pastel[key].title;
+  btn.parentElement.querySelectorAll('.chart-type-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  createChart();
+  upChart();
+}
+
+function init(){createChart()}
+
+function upChart(){
+  if(!allData.length||!mainChart)return;
+  const d=[...allData].reverse();
+  const field=pastel[currentVar].field;
+  const c=pastel[currentVar];
+  mainChart.data.labels=d.map(r=>{const t=new Date(r.created_at);return t.getHours().toString().padStart(2,'0')+':'+t.getMinutes().toString().padStart(2,'0')+':'+t.getSeconds().toString().padStart(2,'0')});
+  mainChart.data.datasets[0].data=d.map(r=>parseFloat(r[field]).toFixed(2));
+  mainChart.data.datasets[0].borderColor=c.border;
+  mainChart.data.datasets[0].backgroundColor=c.bg;
+  mainChart.update();
+}
+
+function upMetrics(){
+  if(!allData.length)return;
+  const r=allData[0];
+  document.getElementById('val-temp').innerHTML=parseFloat(r.temperatura).toFixed(1)+'<span class="metric-unit"> &deg;C</span>';
+  document.getElementById('val-pres').innerHTML=parseFloat(r.presion).toFixed(1)+'<span class="metric-unit"> hPa</span>';
+  document.getElementById('val-alt').innerHTML=parseFloat(r.altitud).toFixed(0)+'<span class="metric-unit"> m</span>';
+  document.getElementById('val-hum').innerHTML=parseFloat(r.humedad||0).toFixed(1)+'<span class="metric-unit"> %</span>';
+}
+
+function upAvg(){
+  if(!allData.length)return;
+  const byH={};
+  allData.forEach(r=>{
+    const t=new Date(r.created_at);
+    const k=t.getFullYear()+'-'+(t.getMonth()+1).toString().padStart(2,'0')+'-'+t.getDate().toString().padStart(2,'0')+' '+t.getHours().toString().padStart(2,'0')+':00';
+    if(!byH[k])byH[k]=[];
+    byH[k].push(r);
+  });
+  const hrs=Object.keys(byH).sort().reverse().slice(0,8);
+  document.getElementById('avg-container').innerHTML=hrs.map(h=>{
+    const rows=byH[h];
+    const avg=f=>rows.reduce((s,r)=>s+parseFloat(r[f]||0),0)/rows.length;
+    return '<div class="avg-card"><div class="avg-hour">&#128337; '+h+' ('+rows.length+' lecturas)</div><div class="avg-vals">&#127777; Temp: '+avg('temperatura').toFixed(2)+'&deg;C | &#128167; Hum: '+avg('humedad').toFixed(1)+'%<br>&#9875; Pres: '+avg('presion').toFixed(1)+' hPa | &#9968; Alt: '+avg('altitud').toFixed(0)+' m</div></div>';
+  }).join('');
+}
+
+async function fetchData(){
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/sensor_data?select=*&order=created_at.desc&limit=100',{headers:H});
+    allData=await r.json();
+    const last=allData[0];
+    const ahora=new Date();
+    const ultima=new Date(last?.created_at);
+    const diffMin=Math.round((ahora-ultima)/60000);
+    const estado=diffMin<1?'En vivo':'Sin datos hace '+diffMin+' min';
+    const fechaUltima=ultima.toLocaleDateString('es-CO')+' '+ultima.toLocaleTimeString('es-CO');
+    document.getElementById('status-dot').className=diffMin<1?'dot':'dot offline';
+    document.getElementById('status-txt').textContent=estado+' \u00B7 ultima: '+fechaUltima;
+    upMetrics();upChart();upAvg();
+  }catch(e){
+    document.getElementById('status-dot').className='dot offline';
+    document.getElementById('status-txt').textContent='Error: '+e.message;
+  }
+}
+
+function copyMCP(){
+  navigator.clipboard.writeText('https://linnie-noncommemoratory-overforwardly.ngrok-free.dev/sse');
+  const btn=document.querySelector('.copy-btn');
+  btn.textContent='Copiado!';
+  setTimeout(()=>btn.textContent='Copiar',2000);
+}
+
+init();fetchData();setInterval(fetchData,5000);
+</script>
+</body>
+</html>
