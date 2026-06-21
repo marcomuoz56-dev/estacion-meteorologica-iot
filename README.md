@@ -279,6 +279,9 @@ estacion-meteorologica-iot/
     - index.html (dashboard web)
 - sql/
   - schema.sql (creacion de tabla y politicas RLS)
+- Procfile (comando de arranque para Horizon: web: python bridgefinal.py)
+- requirements.txt (dependencias Python)
+- server.py (punto de entrada del servidor MCP en producción)
 
 ---
 
