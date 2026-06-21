@@ -235,7 +235,7 @@ el protocolo MCP puede conectarse y consultar los datos del sensor.
 2. Ir a Personalizar (icono de engranaje) -> Conectores
 3. Click en Agregar conector personalizado
 4. Nombre: `estacion-meteorologica`
-5. URL del servidor MCP remoto: pegar la URL de ngrok + /sse
+5. URL del servidor MCP remoto: pegar la URL generada por Horizon
    Ejemplo: `https://estacionmetereologica.fastmcp.app/mcp`
 6. Dejar OAuth vacio
 7. Click en Agregar
