@@ -197,42 +197,32 @@ y CDN global.
 https://medidor-metereologico.web.app
 
 ---
+| Hosting MCP (producción) | Horizon | Exponer el servidor MCP de forma permanente con URL pública estable |
+---
+### Paso 6: Desplegar el servidor MCP en Horizon
 
-### Paso 6: Exponer el servidor MCP con ngrok
+El servidor MCP (`server.py`) se despliega de forma permanente en Horizon para
+contar con una URL pública estable, sin depender de mantener una máquina local
+encendida.
 
-El servidor MCP corre en localhost:8001 y solo es accesible desde la maquina local.
-Para que un LLM externo como Claude pueda conectarse, se necesita exponer el puerto
-a internet. ngrok crea un tunel seguro entre internet y tu maquina local.
+1. Crear cuenta en Horizon y conectar el repositorio
+2. Horizon detecta automáticamente el `Procfile` (`web: python bridgefinal.py`)
+   y el `requirements.txt`
+3. Configurar las variables de entorno (las mismas del archivo `.env`):
+   SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, MQTT_HOST, MQTT_PORT,
+   MQTT_USER, MQTT_PASS
+4. Desplegar — Horizon asigna una URL pública permanente
 
-#### Que es ngrok?
-ngrok es una herramienta que genera una URL publica temporal que redirige el trafico
-hacia un puerto de tu maquina local. Funciona como un tunel inverso: el trafico entra
-por la URL publica de ngrok y sale por tu localhost.
+> **Nota histórica:** durante la fase de desarrollo, el servidor MCP se expuso
+> temporalmente con [ngrok](https://ngrok.com), una herramienta que genera
+> túneles HTTP hacia `localhost`. Esto permitió validar rápidamente la
+> integración con LLMs externos, pero tenía limitaciones (URL cambiante en
+> cada reinicio, un solo túnel activo en el plan gratuito). El despliegue en
+> Horizon reemplaza ese paso para producción.
 
-#### Instalacion de ngrok
-1. Crear cuenta gratuita en https://ngrok.com
-2. Descargar ngrok desde https://ngrok.com/download
-3. Extraer el ejecutable en una carpeta (ejemplo: C:\ngrok\)
-4. Abrir una terminal y autenticarse con tu token personal:
-   `ngrok config add-authtoken TU_TOKEN_AQUI`
-   (El token se encuentra en https://dashboard.ngrok.com/get-started/your-authtoken)
+#### URL del servidor MCP
 
-#### Como exponer el servidor MCP
-1. Asegurarse de que el bridge esta corriendo (`python bridgefinal.py`)
-2. Verificar que el MCP responde en http://localhost:8001/sse
-3. En una terminal separada ejecutar:
-   `ngrok http 8001`
-4. ngrok mostrara una pantalla con la URL publica, por ejemplo:
-   `https://linnie-noncommemoratory-overforwardly.ngrok-free.dev`
-5. La URL del servicio MCP sera:
-   `https://linnie-noncommemoratory-overforwardly.ngrok-free.dev/sse`
-
-#### Limitaciones del plan gratuito de ngrok
-- La URL cambia cada vez que se reinicia ngrok
-- Solo permite 1 tunel activo simultaneamente
-- Muestra una pagina de advertencia en la primera visita del navegador
-- Para una URL fija permanente se requiere el plan de pago o desplegar el bridge en un servidor cloud
-
+https://estacionmetereologica.fastmcp.app/mcp
 ---
 
 ### Paso 7: Conectar un LLM al servicio MCP
@@ -246,7 +236,7 @@ el protocolo MCP puede conectarse y consultar los datos del sensor.
 3. Click en Agregar conector personalizado
 4. Nombre: `estacion-meteorologica`
 5. URL del servidor MCP remoto: pegar la URL de ngrok + /sse
-   Ejemplo: `https://linnie-noncommemoratory-overforwardly.ngrok-free.dev/sse`
+   Ejemplo: `https://estacionmetereologica.fastmcp.app/mcp`
 6. Dejar OAuth vacio
 7. Click en Agregar
 8. En cualquier chat, preguntar:
