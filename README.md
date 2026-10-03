@@ -1,6 +1,6 @@
 # Estación Meteorológica IoT — ESP32 → MQTT → PostgreSQL → Dashboard + MCP
 
-[🇺🇸 Read in English](README.md)
+[🇺🇸 Read in English](READMEEN.md)
 
 Plataforma IoT de datos de extremo a extremo que captura variables atmosféricas (temperatura, presión, altitud y humedad) con un ESP32 + BME280, las transmite por **MQTT/TLS**, las almacena en **PostgreSQL (Supabase)**, las muestra en un **dashboard web en tiempo real** y las expone a **modelos de lenguaje mediante un servidor MCP**.
 
