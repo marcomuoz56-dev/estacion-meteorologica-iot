@@ -1,150 +1,150 @@
-# IoT Weather Station — ESP32 → MQTT → PostgreSQL → Dashboard + MCP
+# Estación Meteorológica IoT — ESP32 → MQTT → PostgreSQL → Dashboard + MCP
 
-[🇪🇸 Leer en español](README.es.md)
+[🇺🇸 Read in English](README.md)
 
-End-to-end IoT data platform that captures atmospheric readings (temperature, pressure, altitude, humidity) with an ESP32 + BME280, streams them over **MQTT/TLS**, stores them in **PostgreSQL (Supabase)**, displays them on a **real-time web dashboard**, and exposes them to **LLMs through an MCP server**.
+Plataforma IoT de datos de extremo a extremo que captura variables atmosféricas (temperatura, presión, altitud y humedad) con un ESP32 + BME280, las transmite por **MQTT/TLS**, las almacena en **PostgreSQL (Supabase)**, las muestra en un **dashboard web en tiempo real** y las expone a **modelos de lenguaje mediante un servidor MCP**.
 
-**Live dashboard:** https://medidor-metereologico.web.app
-**MCP endpoint:** https://estacionmetereologica.fastmcp.app/mcp
+**Dashboard en vivo:** https://medidor-metereologico.web.app
+**Endpoint MCP:** https://estacionmetereologica.fastmcp.app/mcp
 
-Built for the *Advanced Computer Structures* course at Broward International University (Prof. Cristian Gabriel Zambrano Vega, PhD).
+Proyecto desarrollado para la asignatura *Advanced Computer Structures* de Broward International University (Prof. Cristian Gabriel Zambrano Vega, PhD).
 
 ---
 
-## Architecture
+## Arquitectura
 
 ```mermaid
 flowchart LR
-    S[BME280 sensor] -- I2C --> E[ESP32 firmware<br/>C++ / Arduino]
-    E -- "MQTT over TLS :8883<br/>JSON every 2 s" --> B[(HiveMQ Cloud<br/>MQTT broker)]
-    B -- "subscribe sensor/bmp280" --> P[Python bridge<br/>paho-mqtt + httpx]
+    S[Sensor BME280] -- I2C --> E[Firmware ESP32<br/>C++ / Arduino]
+    E -- "MQTT sobre TLS :8883<br/>JSON cada 2 s" --> B[(HiveMQ Cloud<br/>broker MQTT)]
+    B -- "suscripción sensor/bmp280" --> P[Bridge Python<br/>paho-mqtt + httpx]
     P -- "HTTP POST<br/>service_role key" --> DB[(Supabase<br/>PostgreSQL + RLS)]
-    DB -- "REST API, polled every 5 s<br/>anon key, read-only" --> D[Web dashboard<br/>Chart.js on Firebase Hosting]
-    DB -- "REST API<br/>read-only" --> M[MCP server<br/>FastMCP on Horizon]
-    M -- "12 tools + 2 prompts" --> L[LLM clients<br/>e.g. Claude]
+    DB -- "API REST cada 5 s<br/>anon key, solo lectura" --> D[Dashboard web<br/>Chart.js en Firebase Hosting]
+    DB -- "API REST<br/>solo lectura" --> M[Servidor MCP<br/>FastMCP en Horizon]
+    M -- "12 herramientas + 2 prompts" --> L[Clientes LLM<br/>p. ej. Claude]
 ```
 
-**Key design decisions**
+**Decisiones de diseño**
 
-- **MQTT instead of direct HTTP from the device.** It decouples the producer (ESP32) from consumers, keeps a persistent low-overhead connection suited to constrained hardware, and lets new subscribers be added without touching the firmware.
-- **Least-privilege data access.** Row-Level Security allows public `SELECT` but restricts `INSERT` to the `service_role`, so only the bridge can write; the dashboard and MCP server use the read-only anon key.
-- **Secrets out of source control.** Credentials live in `.env` (Python) and `config.h` (firmware), both git-ignored; only `.example` templates are committed.
+- **MQTT en lugar de HTTP directo desde el dispositivo.** Desacopla al emisor (ESP32) de los consumidores, mantiene una conexión persistente de bajo overhead ideal para hardware limitado y permite agregar suscriptores sin modificar el firmware.
+- **Acceso a datos con mínimo privilegio.** Row-Level Security permite `SELECT` público pero restringe `INSERT` al `service_role`: solo el bridge escribe; el dashboard y el servidor MCP usan la anon key de solo lectura.
+- **Credenciales fuera del código.** Viven en `.env` (Python) y `config.h` (firmware), ambos en `.gitignore`; solo se versionan las plantillas `.example`.
 
 ---
 
-## Tech stack
+## Stack tecnológico
 
-| Layer | Technology |
+| Capa | Tecnología |
 | --- | --- |
-| Edge device | ESP32 + BME280 (I2C), C++ / Arduino (PubSubClient, ArduinoJson) |
-| Messaging | HiveMQ Cloud — MQTT over TLS (port 8883) |
-| Ingestion | Python 3 — paho-mqtt, httpx, python-dotenv |
-| Database | Supabase — PostgreSQL with Row-Level Security, auto-generated REST API |
+| Dispositivo edge | ESP32 + BME280 (I2C), C++ / Arduino (PubSubClient, ArduinoJson) |
+| Mensajería | HiveMQ Cloud — MQTT sobre TLS (puerto 8883) |
+| Ingesta | Python 3 — paho-mqtt, httpx, python-dotenv |
+| Base de datos | Supabase — PostgreSQL con Row-Level Security y API REST automática |
 | Frontend | HTML/CSS/JavaScript, Chart.js, Firebase Hosting |
-| AI integration | FastMCP server deployed on Horizon |
+| Integración con IA | Servidor FastMCP desplegado en Horizon |
 
 ---
 
-## Features
+## Funcionalidades
 
 **Firmware (`esp32/estacion.ino`)**
-- Reads temperature, pressure, altitude and humidity every 2 s and publishes JSON to `sensor/bmp280`:
+- Lee temperatura, presión, altitud y humedad cada 2 s y publica un JSON en `sensor/bmp280`:
   `{"temperatura":22.5,"presion":752.3,"altitud":2445,"humedad":47.0}`
-- Connects to the broker over TLS and reconnects automatically if Wi-Fi or MQTT drops.
+- Se conecta al broker por TLS y se reconecta automáticamente si pierde WiFi o MQTT.
 
 **Dashboard (`firebase/public/index.html`)**
-- Four live KPI cards, an interactive chart that switches between variables, and hourly averages.
-- Connection status indicator ("Live" vs. "No data for X min").
+- Cuatro tarjetas de métricas en vivo, gráfica interactiva para alternar entre variables y promedios por hora.
+- Indicador de conexión ("En vivo" o "Sin datos hace X min").
 
-**MCP server (`server.py`)** — lets any MCP-compatible LLM query the station:
+**Servidor MCP (`server.py`)** — permite que cualquier LLM compatible con MCP consulte la estación:
 
-| Tool | Purpose |
+| Herramienta | Función |
 | --- | --- |
-| `obtener_ultima_lectura` | Latest reading |
-| `obtener_ultimas_lecturas` | Last N readings |
-| `obtener_datos_grafico` | Chronological series for charts |
-| `obtener_resumen_estacion` | Mean / max / min statistics |
-| `detectar_alertas` | Rule-based alerts (high/low temperature, high humidity, low pressure) |
-| `obtener_promedio_por_dia` | Daily averages |
-| `obtener_extremos_por_dia` | Daily max / min |
-| `detectar_anomalias` | Statistical outliers (standard-deviation threshold) |
-| `obtener_tendencia_reciente` | Recent trend over a sliding window |
-| `contar_alertas_por_dia` | Alert counts per day |
-| `datos_para_dashboard` | Full data bundle for building dashboards |
-| `obtener_info_proyecto` | Project info and public links |
+| `obtener_ultima_lectura` | Lectura más reciente |
+| `obtener_ultimas_lecturas` | Últimas N lecturas |
+| `obtener_datos_grafico` | Serie cronológica para gráficas |
+| `obtener_resumen_estacion` | Promedio, máximo y mínimo |
+| `detectar_alertas` | Alertas por reglas (temperatura alta/baja, humedad elevada, presión baja) |
+| `obtener_promedio_por_dia` | Promedios diarios |
+| `obtener_extremos_por_dia` | Máximos y mínimos diarios |
+| `detectar_anomalias` | Valores atípicos (umbral de desviaciones estándar) |
+| `obtener_tendencia_reciente` | Tendencia en una ventana reciente |
+| `contar_alertas_por_dia` | Conteo de alertas por día |
+| `datos_para_dashboard` | Paquete completo para construir dashboards |
+| `obtener_info_proyecto` | Información del proyecto y enlaces públicos |
 
-Plus two prompts that ask the LLM to generate an HTML dashboard or a trend analysis between two dates.
+Además, dos prompts que le piden al LLM generar un dashboard HTML o un análisis de tendencias entre dos fechas.
 
 ---
 
-## Repository structure
+## Estructura del repositorio
 
 ```
 estacion-meteorologica-iot/
 ├── esp32/
-│   ├── estacion.ino          # ESP32 firmware
-│   └── config.h.example      # Wi-Fi / MQTT credentials template
+│   ├── estacion.ino          # Firmware del ESP32
+│   └── config.h.example      # Plantilla de credenciales WiFi / MQTT
 ├── bridge/
-│   ├── bridge.py             # MQTT → Supabase ingestion only
-│   ├── bridgeyserver.py      # Ingestion + local MCP server (SSE, port 8001) in one process
-│   └── .env.example          # Environment variables template
+│   ├── bridge.py             # Solo ingesta MQTT → Supabase
+│   ├── bridgeyserver.py      # Ingesta + servidor MCP local (SSE, puerto 8001) en un solo proceso
+│   └── .env.example          # Plantilla de variables de entorno
 ├── firebase/public/
-│   └── index.html            # Web dashboard
+│   └── index.html            # Dashboard web
 ├── sql/
-│   └── schema.sql            # sensor_data table + RLS policies
-├── server.py                 # Production MCP server (deployed on Horizon)
+│   └── schema.sql            # Tabla sensor_data + políticas RLS
+├── server.py                 # Servidor MCP de producción (Horizon)
 ├── requirements.txt
 └── Procfile
 ```
 
 ---
 
-## Getting started
+## Puesta en marcha
 
-**Prerequisites:** free accounts on Supabase, HiveMQ Cloud and Firebase; Arduino IDE with the ESP32 core; Python 3.10+.
+**Requisitos:** cuentas gratuitas en Supabase, HiveMQ Cloud y Firebase; Arduino IDE con el core de ESP32; Python 3.10+.
 
-1. **Database** — create a Supabase project and run `sql/schema.sql` in the SQL Editor.
-2. **Broker** — create a HiveMQ Cloud Serverless cluster and MQTT credentials (host + port 8883).
-3. **Firmware** — install *Adafruit BME280*, *Adafruit Unified Sensor*, *PubSubClient* and *ArduinoJson*; copy `esp32/config.h.example` to `config.h`, fill in your credentials and flash `estacion.ino`. Wiring: `3.3V→VCC`, `GND→GND`, `GPIO21→SDA`, `GPIO22→SCL`.
+1. **Base de datos** — crear un proyecto en Supabase y ejecutar `sql/schema.sql` en el SQL Editor.
+2. **Broker** — crear un clúster Serverless en HiveMQ Cloud y credenciales MQTT (host + puerto 8883).
+3. **Firmware** — instalar *Adafruit BME280*, *Adafruit Unified Sensor*, *PubSubClient* y *ArduinoJson*; copiar `esp32/config.h.example` como `config.h`, completar credenciales y cargar `estacion.ino`. Conexión: `3.3V→VCC`, `GND→GND`, `GPIO21→SDA`, `GPIO22→SCL`.
 4. **Bridge** —
    ```bash
-   cp bridge/.env.example bridge/.env   # fill in Supabase and HiveMQ values
+   cp bridge/.env.example bridge/.env   # completar valores de Supabase y HiveMQ
    pip install -r requirements.txt
-   python bridge/bridgeyserver.py       # ingestion + MCP at http://localhost:8001/sse
+   python bridge/bridgeyserver.py       # ingesta + MCP en http://localhost:8001/sse
    ```
 5. **Dashboard** —
    ```bash
    npm install -g firebase-tools
-   firebase login && firebase init hosting   # public dir: public, not an SPA
+   firebase login && firebase init hosting   # directorio público: public, sin SPA
    cp firebase/public/index.html public/index.html
    firebase deploy
    ```
-6. **MCP in production** — connect the repo to Horizon, set the same environment variables and deploy `server.py`.
-7. **Connect an LLM** — in Claude.ai go to *Settings → Connectors → Add custom connector* and paste the MCP URL. Then ask, for example: *"What's the current temperature?"* or *"Are there any weather alerts?"*
+6. **MCP en producción** — conectar el repositorio a Horizon, configurar las mismas variables de entorno y desplegar `server.py`.
+7. **Conectar un LLM** — en Claude.ai ir a *Configuración → Conectores → Agregar conector personalizado* y pegar la URL MCP. Luego preguntar, por ejemplo: *"¿Cuál es la temperatura actual?"* o *"¿Hay alguna alerta meteorológica?"*
 
 ---
 
-## Security
+## Seguridad
 
-| Mechanism | What it protects |
+| Mecanismo | Qué protege |
 | --- | --- |
-| TLS on port 8883 | Encrypts device-to-broker traffic |
-| `.env` / `config.h` + `.gitignore` | Keeps credentials out of the repository |
-| Row-Level Security | Public read, write restricted to `service_role` |
-| Separate anon / service keys | Only the bridge can insert data |
+| TLS en el puerto 8883 | Cifra el tráfico dispositivo-broker |
+| `.env` / `config.h` + `.gitignore` | Mantiene las credenciales fuera del repositorio |
+| Row-Level Security | Lectura pública, escritura solo para `service_role` |
+| Llaves anon / service separadas | Solo el bridge puede insertar datos |
 
 ---
 
-## Roadmap
+## Próximos pasos
 
-- Validate the broker's TLS certificate on the ESP32 (currently `setInsecure()` for development).
-- Add unit tests for the MCP tools and a CI pipeline (lint + tests on every push).
-- Containerize the bridge with Docker.
-- Rebuild the dashboard as a React + TypeScript SPA.
+- Validar el certificado TLS del broker en el ESP32 (hoy usa `setInsecure()` en modo desarrollo).
+- Agregar pruebas unitarias a las herramientas MCP y un pipeline de CI (lint + pruebas en cada push).
+- Contenerizar el bridge con Docker.
+- Reconstruir el dashboard como SPA en React + TypeScript.
 
 ---
 
-## Author
+## Autor
 
-**Marco Antonio Muñoz Ramírez** — Electronic Engineer, M.S. candidate in Computer Software Engineering (AI), Broward International University
+**Marco Antonio Muñoz Ramírez** — Ingeniero Electrónico, candidato a M.S. en Computer Software Engineering (IA), Broward International University
 [GitHub](https://github.com/marcomuoz56-dev)
